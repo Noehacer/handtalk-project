@@ -43,9 +43,9 @@ def test_get_user_not_found():
 # ── Traducciones ──────────────────────────────────────────────────────────────
 
 def test_save_and_get_history():
-    database.save_translation("sign_to_text", "[img]", "Hola", 0.95)
-    database.save_translation("text_to_sign", "gracias", "/assets/gracias.png")
-    history = database.get_history(10)
+    database.save_translation("sign_to_text", "[img]", "Hola", 0.95, user_id="db_test_user")
+    database.save_translation("text_to_sign", "gracias", "/assets/gracias.png", user_id="db_test_user")
+    history = database.get_history(10, user_id="db_test_user")
     assert len(history) == 2
     # Más reciente primero
     assert history[0]["input"] == "gracias"
@@ -53,8 +53,8 @@ def test_save_and_get_history():
 
 def test_history_respects_limit():
     for i in range(10):
-        database.save_translation("text_to_sign", f"word{i}", f"img{i}")
-    assert len(database.get_history(3)) == 3
+        database.save_translation("text_to_sign", f"word{i}", f"img{i}", user_id="db_limit_user")
+    assert len(database.get_history(3, user_id="db_limit_user")) == 3
 
 
 def test_history_empty():
@@ -117,8 +117,8 @@ def test_count_signs():
 
 def test_save_translation_uses_utc_isoformat():
     from database import save_translation, get_history
-    save_translation("sign_to_text", "[img]", "HOLA", 0.9)
-    history = get_history(1)
+    save_translation("sign_to_text", "[img]", "HOLA", 0.9, user_id="db_utc_user")
+    history = get_history(1, user_id="db_utc_user")
     assert history, "No se guardó la traducción"
     ts = history[0]["created_at"]
     from datetime import datetime, timezone

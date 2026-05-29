@@ -81,16 +81,13 @@ def save_translation(type_: str, input_: str, output: str, confidence: float = N
 
 
 def get_history(limit: int = 20, user_id: str = None):
+    if not user_id:
+        return []
     conn = _get_conn()
-    if user_id:
-        rows = conn.execute(
-            "SELECT * FROM translations WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
-            (user_id, limit),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM translations ORDER BY created_at DESC LIMIT ?", (limit,)
-        ).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM translations WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+        (user_id, limit),
+    ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 

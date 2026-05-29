@@ -112,11 +112,30 @@ def test_sequence_reset():
 
 
 def test_history_is_user_scoped():
-    client.post("/auth/register", json={"username": "user_a_hist", "password": "pass1234"})
-    client.post("/auth/register", json={"username": "user_b_hist", "password": "pass1234"})
-    token_a = client.post("/auth/login", json={"username": "user_a_hist", "password": "pass1234"}).json()["access_token"]
-    token_b = client.post("/auth/login", json={"username": "user_b_hist", "password": "pass1234"}).json()["access_token"]
-    r_a = client.get("/history", headers={"Authorization": f"Bearer {token_a}"}).json()
-    assert r_a["user"] == "user_a_hist"
-    r_b = client.get("/history", headers={"Authorization": f"Bearer {token_b}"}).json()
-    assert r_b["user"] == "user_b_hist"
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from database import save_translation
+
+    # Register and login two users
+    client.post("/auth/register", json={"username": "scope_user_a", "password": "pass1234"})
+    client.post("/auth/register", json={"username": "scope_user_b", "password": "pass1234"})
+    token_a = client.post("/auth/login", json={"username": "scope_user_a", "password": "pass1234"}).json()["access_token"]
+    token_b = client.post("/auth/login", json={"username": "scope_user_b", "password": "pass1234"}).json()["access_token"]
+
+    # Insert translations belonging to each user
+    save_translation("sign_to_text", "[test]", "HOLA_USER_A", user_id="scope_user_a")
+    save_translation("sign_to_text", "[test]", "ADIOS_USER_B", user_id="scope_user_b")
+
+    # User A should only see their own record
+    hist_a = client.get("/history", headers={"Authorization": f"Bearer {token_a}"}).json()
+    assert hist_a["user"] == "scope_user_a"
+    outputs_a = [h["output"] for h in hist_a["history"]]
+    assert "HOLA_USER_A" in outputs_a
+    assert "ADIOS_USER_B" not in outputs_a
+
+    # User B should only see their own record
+    hist_b = client.get("/history", headers={"Authorization": f"Bearer {token_b}"}).json()
+    assert hist_b["user"] == "scope_user_b"
+    outputs_b = [h["output"] for h in hist_b["history"]]
+    assert "ADIOS_USER_B" in outputs_b
+    assert "HOLA_USER_A" not in outputs_b
