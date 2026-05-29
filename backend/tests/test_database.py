@@ -113,3 +113,14 @@ def test_count_signs():
     database.upsert_sign("a", "a.png")
     database.upsert_sign("b", "b.png")
     assert database.count_signs() == 2
+
+
+def test_save_translation_uses_utc_isoformat():
+    from database import save_translation, get_history
+    save_translation("sign_to_text", "[img]", "HOLA", 0.9)
+    history = get_history(1)
+    assert history, "No se guardó la traducción"
+    ts = history[0]["created_at"]
+    from datetime import datetime, timezone
+    parsed = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    assert parsed is not None

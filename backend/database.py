@@ -4,7 +4,7 @@ Tablas: translations, users, signs
 """
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 import config
 from logger import get_logger
 
@@ -59,7 +59,7 @@ def save_translation(type_: str, input_: str, output: str, confidence: float = N
     conn = _get_conn()
     conn.execute(
         "INSERT INTO translations (type, input, output, confidence, created_at) VALUES (?,?,?,?,?)",
-        (type_, input_, output, confidence, datetime.utcnow().isoformat()),
+        (type_, input_, output, confidence, datetime.now(timezone.utc).isoformat()),
     )
     conn.commit()
     conn.close()
@@ -81,7 +81,7 @@ def create_user(username: str, hashed_password: str) -> bool:
     try:
         conn.execute(
             "INSERT INTO users (username, hashed_password, created_at) VALUES (?,?,?)",
-            (username, hashed_password, datetime.utcnow().isoformat()),
+            (username, hashed_password, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
         log.info(f"Usuario creado: {username}")
@@ -111,7 +111,7 @@ def upsert_sign(word: str, filename: str, media_type: str = "image/png", categor
                filename=excluded.filename,
                media_type=excluded.media_type,
                category=excluded.category""",
-        (word, filename, media_type, category, datetime.utcnow().isoformat()),
+        (word, filename, media_type, category, datetime.now(timezone.utc).isoformat()),
     )
     conn.commit()
     conn.close()

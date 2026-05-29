@@ -4,7 +4,7 @@ import unicodedata
 from difflib import get_close_matches
 import config
 from logger import get_logger
-from database import get_sign, get_all_signs
+from database import get_sign, get_all_signs, count_signs
 
 log = get_logger(__name__)
 
@@ -16,6 +16,24 @@ _FALLBACK = {
     "por favor": "por_favor.png",
     "ayuda":     "ayuda.png",
 }
+
+_words_cache: list[str] | None = None
+_words_cache_size: int = 0
+
+
+def _get_words_cache() -> list[str]:
+    global _words_cache, _words_cache_size
+    current = count_signs()
+    if _words_cache is None or current != _words_cache_size:
+        _words_cache = [s["word"] for s in get_all_signs()]
+        _words_cache_size = current
+    return _words_cache
+
+
+def invalidate_words_cache():
+    global _words_cache, _words_cache_size
+    _words_cache = None
+    _words_cache_size = 0
 
 
 def _normalize(text: str) -> str:
@@ -47,7 +65,7 @@ def _lookup(word: str):
     if sign:
         return sign, norm
 
-    all_words = [s["word"] for s in get_all_signs()]
+    all_words = _get_words_cache()
     if all_words:
         matches = get_close_matches(norm, all_words, n=1, cutoff=config.FUZZY_MATCH_CUTOFF)
         if matches:

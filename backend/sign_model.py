@@ -51,8 +51,7 @@ def normalize_landmarks(landmarks: np.ndarray) -> np.ndarray:
     pts = landmarks.copy()
     pts -= pts[0]
     scale = np.linalg.norm(pts[9])
-    if scale > 0:
-        pts /= scale
+    pts /= max(float(scale), 1e-6)
     return pts.flatten()
 
 

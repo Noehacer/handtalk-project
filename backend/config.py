@@ -34,7 +34,7 @@ ALGORITHM          = "HS256"
 TOKEN_EXPIRE_HOURS = int(os.getenv("TOKEN_EXPIRE_HOURS", "24"))
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:8081,http://localhost:19006").split(",")
 
 # ── Rate limits ───────────────────────────────────────────────────────────────
 # Estático continuo: 1 foto cada 2s = 30/min → 60/min da margen
