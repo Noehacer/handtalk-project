@@ -31,7 +31,8 @@ def init_db():
             input       TEXT,
             output      TEXT,
             confidence  REAL,
-            created_at  TEXT    NOT NULL
+            created_at  TEXT    NOT NULL,
+            user_id     TEXT
         );
         CREATE TABLE IF NOT EXISTS users (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,36 +41,56 @@ def init_db():
             created_at      TEXT        NOT NULL
         );
         CREATE TABLE IF NOT EXISTS signs (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            word        TEXT UNIQUE NOT NULL,
-            filename    TEXT,
-            media_type  TEXT NOT NULL DEFAULT 'image/png',
-            category    TEXT,
-            created_at  TEXT NOT NULL
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            word           TEXT UNIQUE NOT NULL,
+            filename       TEXT,
+            media_type     TEXT NOT NULL DEFAULT 'image/png',
+            category       TEXT,
+            has_real_image INTEGER NOT NULL DEFAULT 0,
+            created_at     TEXT NOT NULL
         );
     """)
-    conn.commit()
+    for col_sql in [
+        "ALTER TABLE translations ADD COLUMN user_id TEXT",
+        "ALTER TABLE signs ADD COLUMN has_real_image INTEGER NOT NULL DEFAULT 0",
+    ]:
+        try:
+            conn.execute(col_sql)
+            conn.commit()
+        except Exception:
+            pass
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_translations_user ON translations(user_id)")
+        conn.commit()
+    except Exception:
+        pass
     conn.close()
     log.info(f"Base de datos lista: {DB_PATH}")
 
 
 # ── Traducciones ──────────────────────────────────────────────────────────────
 
-def save_translation(type_: str, input_: str, output: str, confidence: float = None):
+def save_translation(type_: str, input_: str, output: str, confidence: float = None, user_id: str = None):
     conn = _get_conn()
     conn.execute(
-        "INSERT INTO translations (type, input, output, confidence, created_at) VALUES (?,?,?,?,?)",
-        (type_, input_, output, confidence, datetime.now(timezone.utc).isoformat()),
+        "INSERT INTO translations (type, input, output, confidence, created_at, user_id) VALUES (?,?,?,?,?,?)",
+        (type_, input_, output, confidence, datetime.now(timezone.utc).isoformat(), user_id),
     )
     conn.commit()
     conn.close()
 
 
-def get_history(limit: int = 20):
+def get_history(limit: int = 20, user_id: str = None):
     conn = _get_conn()
-    rows = conn.execute(
-        "SELECT * FROM translations ORDER BY created_at DESC LIMIT ?", (limit,)
-    ).fetchall()
+    if user_id:
+        rows = conn.execute(
+            "SELECT * FROM translations WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM translations ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 

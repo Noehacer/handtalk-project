@@ -109,3 +109,14 @@ def test_sequence_predict_empty_buffer():
 def test_sequence_reset():
     r = client.delete("/predict-sign-sequence/reset")
     assert r.status_code == 200
+
+
+def test_history_is_user_scoped():
+    client.post("/auth/register", json={"username": "user_a_hist", "password": "pass1234"})
+    client.post("/auth/register", json={"username": "user_b_hist", "password": "pass1234"})
+    token_a = client.post("/auth/login", json={"username": "user_a_hist", "password": "pass1234"}).json()["access_token"]
+    token_b = client.post("/auth/login", json={"username": "user_b_hist", "password": "pass1234"}).json()["access_token"]
+    r_a = client.get("/history", headers={"Authorization": f"Bearer {token_a}"}).json()
+    assert r_a["user"] == "user_a_hist"
+    r_b = client.get("/history", headers={"Authorization": f"Bearer {token_b}"}).json()
+    assert r_b["user"] == "user_b_hist"

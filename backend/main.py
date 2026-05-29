@@ -6,7 +6,7 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -263,9 +263,9 @@ def signs_stats():
     summary="Agregar o actualizar una seña (requiere auth)",
 )
 async def add_sign(
-    word:       str,
-    category:   str | None       = None,
-    media_type: str               = "image/png",
+    word:       str               = Form(...),
+    category:   str | None        = Form(default=None),
+    media_type: str               = Form(default="image/png"),
     file:       UploadFile | None = File(default=None),
     username:   str               = Depends(get_current_user),
 ):
@@ -313,4 +313,4 @@ def remove_sign(word: str, username: str = Depends(get_current_user)):
     description="Retorna las últimas N traducciones. Header requerido: Authorization: Bearer <token>",
 )
 def history(limit: int = 20, username: str = Depends(get_current_user)):
-    return {"user": username, "history": get_history(limit)}
+    return {"user": username, "history": get_history(limit, user_id=username)}
