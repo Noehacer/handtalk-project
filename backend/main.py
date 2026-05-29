@@ -286,6 +286,8 @@ async def add_sign(
             log.warning(f"No se pudo generar placeholder: {exc}")
 
     upsert_sign(word=word, filename=filename, media_type=media_type, category=category)
+    from text_to_sign import invalidate_words_cache
+    invalidate_words_cache()
     return {"message": f"Seña '{word}' guardada.", "filename": filename}
 
 
@@ -297,6 +299,8 @@ async def add_sign(
 def remove_sign(word: str, username: str = Depends(get_current_user)):
     if not delete_sign(word):
         raise HTTPException(status_code=404, detail=f"Seña '{word}' no encontrada.")
+    from text_to_sign import invalidate_words_cache
+    invalidate_words_cache()
     return {"message": f"Seña '{word}' eliminada."}
 
 

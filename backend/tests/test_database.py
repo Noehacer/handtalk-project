@@ -123,4 +123,5 @@ def test_save_translation_uses_utc_isoformat():
     ts = history[0]["created_at"]
     from datetime import datetime, timezone
     parsed = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    assert parsed is not None
+    assert parsed.tzinfo is not None, "El timestamp debe ser timezone-aware"
+    assert parsed.utcoffset().total_seconds() == 0, "El timestamp debe ser UTC"

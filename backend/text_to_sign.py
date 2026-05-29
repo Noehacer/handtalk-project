@@ -18,22 +18,23 @@ _FALLBACK = {
 }
 
 _words_cache: list[str] | None = None
-_words_cache_size: int = 0
+_words_cache_count: int = 0
+_words_cache_dirty: bool = False
 
 
 def _get_words_cache() -> list[str]:
-    global _words_cache, _words_cache_size
+    global _words_cache, _words_cache_count, _words_cache_dirty
     current = count_signs()
-    if _words_cache is None or current != _words_cache_size:
+    if _words_cache is None or current != _words_cache_count or _words_cache_dirty:
         _words_cache = [s["word"] for s in get_all_signs()]
-        _words_cache_size = current
+        _words_cache_count = current
+        _words_cache_dirty = False
     return _words_cache
 
 
 def invalidate_words_cache():
-    global _words_cache, _words_cache_size
-    _words_cache = None
-    _words_cache_size = 0
+    global _words_cache_dirty
+    _words_cache_dirty = True
 
 
 def _normalize(text: str) -> str:
