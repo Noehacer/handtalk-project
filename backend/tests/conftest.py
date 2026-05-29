@@ -17,9 +17,20 @@ cv2_mock.COLOR_BGR2RGB = 4
 sys.modules['cv2'] = cv2_mock
 
 mp_mock = MagicMock()
+
+# Mock mp.solutions.hands (legacy)
 hands_instance = MagicMock()
 hands_instance.process.return_value = MagicMock(multi_hand_landmarks=None)
 mp_mock.solutions.hands.Hands.return_value = hands_instance
+
+# Mock mp.solutions.holistic (new)
+holistic_instance = MagicMock()
+holistic_instance.process.return_value = MagicMock(
+    left_hand_landmarks=None,
+    right_hand_landmarks=None,
+    face_landmarks=None,
+)
+mp_mock.solutions.holistic.Holistic.return_value = holistic_instance
 mp_mock.solutions.drawing_utils = MagicMock()
 sys.modules['mediapipe'] = mp_mock
 
