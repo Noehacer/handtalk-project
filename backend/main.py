@@ -58,6 +58,17 @@ app.add_middleware(
 app.mount("/assets", StaticFiles(directory=str(config.ASSETS_DIR)), name="assets")
 init_db()
 
+import asyncio as _asyncio
+
+@app.on_event("startup")
+async def _start_cleanup_task():
+    async def _cleanup_loop():
+        while True:
+            await _asyncio.sleep(300)  # every 5 minutes
+            session_manager.cleanup_stale(max_age_seconds=300)
+            log.debug("SessionManager: limpieza de sesiones inactivas completada.")
+    _asyncio.create_task(_cleanup_loop())
+
 
 # ── Schemas / Response models ─────────────────────────────────────────────────
 
@@ -224,7 +235,7 @@ def reset_sequence():
     tags=["NLP"],
     summary="Traducir buffer de señas LSM → español con Claude",
 )
-async def nlp_translate(body: NLPTranslateBody):
+async def nlp_translate(body: NLPTranslateBody, username: str = Depends(get_current_user)):
     signs = session_manager.get_signs(body.session_id)
     if not signs:
         return {"signs": [], "translation": "", "confidence_avg": 0.0}
@@ -238,7 +249,7 @@ async def nlp_translate(body: NLPTranslateBody):
     tags=["NLP"],
     summary="Limpiar buffer de señas de la sesión",
 )
-def nlp_clear(session_id: str):
+def nlp_clear(session_id: str, username: str = Depends(get_current_user)):
     session_manager.clear(session_id)
     return {"message": "Buffer limpiado"}
 
@@ -338,9 +349,26 @@ async def add_sign(
     file:       UploadFile | None = File(default=None),
     username:   str               = Depends(get_current_user),
 ):
+    # CR-05: validate allowed media types / extensions
+    ALLOWED_MEDIA_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+    if media_type not in ALLOWED_MEDIA_TYPES:
+        raise HTTPException(status_code=422, detail=f"Tipo de media no permitido: {media_type}. Permitidos: {sorted(ALLOWED_MEDIA_TYPES)}")
+
+    # CR-03: sanitise word to prevent path traversal
+    import re
+    safe_word = re.sub(r"[^\w\-]", "_", word.strip())
+    if not safe_word or safe_word != word.strip():
+        raise HTTPException(status_code=422, detail="La palabra contiene caracteres no permitidos.")
+
     ext      = media_type.split("/")[-1]
-    filename = f"{word}.{ext}"
+    filename = f"{safe_word}.{ext}"
     dest     = config.ASSETS_DIR / filename
+
+    # Confirm resolved path is inside ASSETS_DIR
+    try:
+        dest.resolve().relative_to(config.ASSETS_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Nombre de archivo inválido.")
 
     if file:
         contents = await file.read()
@@ -349,16 +377,16 @@ async def add_sign(
     elif not dest.exists():
         try:
             from seed_dictionary import create_placeholder
-            create_placeholder(word, filename, category or "default")
+            create_placeholder(safe_word, filename, category or "default")
             log.info(f"Placeholder generado: {filename}")
         except Exception as exc:
             log.warning(f"No se pudo generar placeholder: {exc}")
 
-    upsert_sign(word=word, filename=filename, media_type=media_type,
+    upsert_sign(word=safe_word, filename=filename, media_type=media_type,
                 category=category, has_real_image=file is not None)
     from text_to_sign import invalidate_words_cache
     invalidate_words_cache()
-    return {"message": f"Seña '{word}' guardada.", "filename": filename}
+    return {"message": f"Seña '{safe_word}' guardada.", "filename": filename}
 
 
 @app.delete(
@@ -389,7 +417,16 @@ def history(limit: int = 20, username: str = Depends(get_current_user)):
 # ── WebSocket tiempo real ─────────────────────────────────────────────────────
 
 @app.websocket("/ws/detect")
-async def ws_detect(websocket: WebSocket, sid: str = "anon"):
+async def ws_detect(websocket: WebSocket, sid: str = "anon", token: str = ""):
+    # CR-01: validate JWT before accepting connection
+    if token:
+        try:
+            from auth import verify_token
+            _username = verify_token(token)
+        except Exception:
+            await websocket.close(code=4001)
+            log.warning(f"WS rechazado: token inválido para sid={sid}")
+            return
     await websocket.accept()
     log.info(f"WS conectado: sid={sid}")
     last_static = ""
@@ -464,6 +501,6 @@ async def ws_detect(websocket: WebSocket, sid: str = "anon"):
     except Exception as exc:
         log.error(f"Error WS {sid}: {exc}")
         try:
-            await websocket.send_json({"type": "error", "detail": str(exc)})
+            await websocket.send_json({"type": "error", "detail": "Error interno del servidor."})
         except Exception:
             pass

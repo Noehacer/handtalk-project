@@ -29,7 +29,14 @@ DYNAMIC_CONFIDENCE_THRESHOLD = float(os.getenv("DYNAMIC_CONFIDENCE_THRESHOLD", "
 FUZZY_MATCH_CUTOFF           = float(os.getenv("FUZZY_MATCH_CUTOFF",           "0.75"))
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
-SECRET_KEY         = os.getenv("SECRET_KEY", "handtalk-dev-insecure-key-change-in-prod")
+import warnings as _w
+SECRET_KEY = os.getenv("SECRET_KEY", "handtalk-dev-insecure-key-change-in-prod")
+if SECRET_KEY == "handtalk-dev-insecure-key-change-in-prod":
+    if os.getenv("ENVIRONMENT", "development") == "production":
+        raise RuntimeError(
+            "SECRET_KEY no configurada. Establece SECRET_KEY en producción."
+        )
+    _w.warn("⚠  Usando SECRET_KEY insegura. Configura SECRET_KEY antes de desplegar.", stacklevel=1)
 ALGORITHM          = "HS256"
 TOKEN_EXPIRE_HOURS = int(os.getenv("TOKEN_EXPIRE_HOURS", "24"))
 
