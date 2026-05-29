@@ -120,16 +120,19 @@ def get_user(username: str):
 
 # ── Señas ─────────────────────────────────────────────────────────────────────
 
-def upsert_sign(word: str, filename: str, media_type: str = "image/png", category: str = None):
+def upsert_sign(word: str, filename: str, media_type: str = "image/png",
+                category: str = None, has_real_image: bool = False):
     conn = _get_conn()
     conn.execute(
-        """INSERT INTO signs (word, filename, media_type, category, created_at)
-           VALUES (?,?,?,?,?)
+        """INSERT INTO signs (word, filename, media_type, category, has_real_image, created_at)
+           VALUES (?,?,?,?,?,?)
            ON CONFLICT(word) DO UPDATE SET
                filename=excluded.filename,
                media_type=excluded.media_type,
-               category=excluded.category""",
-        (word, filename, media_type, category, datetime.now(timezone.utc).isoformat()),
+               category=excluded.category,
+               has_real_image=excluded.has_real_image""",
+        (word, filename, media_type, category, int(has_real_image),
+         datetime.now(timezone.utc).isoformat()),
     )
     conn.commit()
     conn.close()

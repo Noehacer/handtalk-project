@@ -6,7 +6,7 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -15,6 +15,8 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import cv2
 import numpy as np
+import base64 as _b64
+import json as _json
 
 import config
 from logger import get_logger
@@ -26,6 +28,12 @@ from database import (
     upsert_sign, get_all_signs, delete_sign, count_signs,
 )
 from auth import register, login, get_current_user
+
+import nlp_pipeline
+from session_manager import session_manager
+from holistic_model import extract_video
+from sign_classifier import predict_static
+from temporal_model import predict_dynamic as _predict_dynamic
 
 log = get_logger(__name__)
 
@@ -70,19 +78,28 @@ class PredictionResponse(BaseModel):
 
 
 class SignImageResponse(BaseModel):
-    found:      bool
-    word:       str
-    path:       str | None = None
-    base64:     str | None = None
-    media_type: str | None = None
-    category:   str | None = None
-    suggestion: str | None = None
+    found:            bool
+    word:             str
+    path:             str | None = None
+    base64:           str | None = None
+    thumbnail_base64: str | None = None
+    media_type:       str | None = None
+    category:         str | None = None
+    suggestion:       str | None = None
+    has_real_image:   bool       = False
 
 
 class PhraseResponse(BaseModel):
-    phrase: str
-    signs:  list[SignImageResponse]
-    total:  int
+    phrase:           str
+    translation_hint: str | None = None
+    signs:            list[SignImageResponse]
+    total:            int
+    found_count:      int        = 0
+    not_found:        list[str]  = []
+
+
+class NLPTranslateBody(BaseModel):
+    session_id: str
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -200,6 +217,32 @@ def reset_sequence():
     return {"message": "Buffer reiniciado"}
 
 
+# ── NLP ───────────────────────────────────────────────────────────────────────
+
+@app.post(
+    "/nlp/translate",
+    tags=["NLP"],
+    summary="Traducir buffer de señas LSM → español con Claude",
+)
+async def nlp_translate(body: NLPTranslateBody):
+    signs = session_manager.get_signs(body.session_id)
+    if not signs:
+        return {"signs": [], "translation": "", "confidence_avg": 0.0}
+    translation = await nlp_pipeline.translate_to_spanish(signs)
+    save_translation(type_="sign_to_text", input_="[nlp]", output=translation)
+    return {"signs": signs, "translation": translation, "confidence_avg": 0.0}
+
+
+@app.delete(
+    "/nlp/clear",
+    tags=["NLP"],
+    summary="Limpiar buffer de señas de la sesión",
+)
+def nlp_clear(session_id: str):
+    session_manager.clear(session_id)
+    return {"message": "Buffer limpiado"}
+
+
 # ── Texto → Señas ─────────────────────────────────────────────────────────────
 
 @app.get(
@@ -225,17 +268,26 @@ def text_to_sign(request: Request, word: str):
     "/text-to-sign-phrase/{phrase}",
     response_model=PhraseResponse,
     tags=["Traducción"],
-    summary="Traducir frase a señas",
-    description="Traduce una frase completa palabra por palabra. Cada elemento incluye su imagen.",
+    summary="Traducir frase a señas con galería de imágenes",
 )
 @limiter.limit(config.RATE_PHRASE)
 def text_to_sign_phrase(request: Request, phrase: str):
     words = phrase.strip().split()
     if not words:
         raise HTTPException(status_code=422, detail="La frase no puede estar vacía.")
-    signs = [get_sign_image(w) for w in words]
-    save_translation(type_="text_to_sign_phrase", input_=phrase, output=f"{len(signs)} señas")
-    return {"phrase": phrase, "signs": signs, "total": len(signs)}
+    signs       = [get_sign_image(w) for w in words]
+    found_count = sum(1 for s in signs if s["found"])
+    not_found   = [s["word"] for s in signs if not s["found"]]
+    save_translation(type_="text_to_sign_phrase", input_=phrase,
+                     output=f"{found_count}/{len(signs)} señas")
+    return {
+        "phrase":           phrase,
+        "translation_hint": phrase,
+        "signs":            signs,
+        "total":            len(signs),
+        "found_count":      found_count,
+        "not_found":        not_found,
+    }
 
 
 # ── Diccionario ───────────────────────────────────────────────────────────────
@@ -244,6 +296,23 @@ def text_to_sign_phrase(request: Request, phrase: str):
 def list_signs(category: str | None = None):
     signs = get_all_signs(category)
     return {"total": len(signs), "signs": signs}
+
+
+@app.get(
+    "/signs/{word}/image",
+    tags=["Diccionario"],
+    summary="Obtener imagen de una seña directamente",
+)
+def sign_image_direct(word: str):
+    from fastapi.responses import FileResponse
+    from database import get_sign as db_get_sign
+    sign = db_get_sign(word)
+    if not sign or not sign.get("filename"):
+        raise HTTPException(status_code=404, detail=f"Seña '{word}' no encontrada.")
+    full_path = config.ASSETS_DIR / sign["filename"]
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="Imagen no disponible.")
+    return FileResponse(str(full_path), media_type=sign.get("media_type", "image/png"))
 
 
 @app.get("/signs/stats", tags=["Diccionario"], summary="Estadísticas del diccionario")
@@ -285,7 +354,8 @@ async def add_sign(
         except Exception as exc:
             log.warning(f"No se pudo generar placeholder: {exc}")
 
-    upsert_sign(word=word, filename=filename, media_type=media_type, category=category)
+    upsert_sign(word=word, filename=filename, media_type=media_type,
+                category=category, has_real_image=file is not None)
     from text_to_sign import invalidate_words_cache
     invalidate_words_cache()
     return {"message": f"Seña '{word}' guardada.", "filename": filename}
@@ -314,3 +384,86 @@ def remove_sign(word: str, username: str = Depends(get_current_user)):
 )
 def history(limit: int = 20, username: str = Depends(get_current_user)):
     return {"user": username, "history": get_history(limit, user_id=username)}
+
+
+# ── WebSocket tiempo real ─────────────────────────────────────────────────────
+
+@app.websocket("/ws/detect")
+async def ws_detect(websocket: WebSocket, sid: str = "anon"):
+    await websocket.accept()
+    log.info(f"WS conectado: sid={sid}")
+    last_static = ""
+
+    try:
+        while True:
+            raw      = await websocket.receive_text()
+            msg      = _json.loads(raw)
+            msg_type = msg.get("type")
+
+            if msg_type == "frame":
+                raw_data = msg.get("data", "")
+                _, _, encoded = raw_data.partition(",")
+                img_bytes = _b64.b64decode(encoded if encoded else raw_data)
+                image     = _decode_image(img_bytes)
+
+                features = extract_video(image)
+                if features is None:
+                    await websocket.send_json({"type": "status", "message": "Mano no detectada"})
+                    continue
+
+                # Static prediction
+                static_result = predict_static(features)
+                sign       = static_result["prediction"]
+                confidence = static_result["confidence"]
+
+                if sign not in ("No reconocido", "No detectado", "Modelo no disponible", "Error"):
+                    if sign != last_static:
+                        last_static = sign
+                        session_manager.add_sign(sid, sign)
+                        await websocket.send_json({
+                            "type": "sign", "sign": sign,
+                            "confidence": confidence, "mode": "static",
+                        })
+
+                # Dynamic buffer
+                ready = session_manager.add_landmark_frame(sid, features)
+                if ready:
+                    import numpy as np
+                    buf = np.array(session_manager.get_landmark_buffer(sid))
+                    dyn = _predict_dynamic(buf)
+                    session_manager.clear_landmark_buffer(sid)
+                    if dyn["prediction"] not in ("No reconocido", "Modelo no disponible", "Error"):
+                        session_manager.add_sign(sid, dyn["prediction"])
+                        await websocket.send_json({
+                            "type": "sign", "sign": dyn["prediction"],
+                            "confidence": dyn["confidence"], "mode": "dynamic",
+                        })
+
+            elif msg_type == "translate":
+                signs = session_manager.get_signs(sid)
+                if not signs:
+                    await websocket.send_json({
+                        "type": "sentence", "signs": [], "text": "", "confidence_avg": 0.0
+                    })
+                    continue
+                translation = await nlp_pipeline.translate_to_spanish(signs)
+                save_translation(type_="sign_to_text", input_="[websocket]", output=translation)
+                await websocket.send_json({
+                    "type": "sentence", "signs": signs,
+                    "text": translation, "confidence_avg": 0.0,
+                })
+
+            elif msg_type == "clear":
+                session_manager.clear(sid)
+                last_static = ""
+                await websocket.send_json({"type": "status", "message": "Buffer limpiado"})
+
+    except WebSocketDisconnect:
+        session_manager.clear(sid)
+        log.info(f"WS desconectado: sid={sid}")
+    except Exception as exc:
+        log.error(f"Error WS {sid}: {exc}")
+        try:
+            await websocket.send_json({"type": "error", "detail": str(exc)})
+        except Exception:
+            pass
