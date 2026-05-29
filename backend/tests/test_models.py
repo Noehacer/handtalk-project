@@ -69,36 +69,28 @@ def test_predict_no_hand(monkeypatch):
     assert result["confidence"] == 0.0
 
 
-def test_predict_fallback_heuristic(monkeypatch):
-    """Sin modelo entrenado debe usar la heurística thumb vs index."""
-    import sign_model
-    monkeypatch.setattr(sign_model, "_model", None)
-    monkeypatch.setattr(sign_model, "_class_names", None)
-
-    # thumb_tip.x < index_tip.x → "Hola"
-    lm = _make_landmarks()
-    lm[4][0] = 0.1  # thumb x (menor)
-    lm[8][0] = 0.9  # index x (mayor)
-    monkeypatch.setattr(sign_model, "extract_landmarks", lambda img: lm)
-
+def test_predict_delegates_to_sign_classifier(monkeypatch):
+    """Cuando extract_static retorna features, predict_static recibe esas features y su resultado se reenvía."""
     import numpy as np
+    import sign_model
+
+    fake_features = np.zeros(225)
+    monkeypatch.setattr(sign_model, "extract_static", lambda img: fake_features)
+    monkeypatch.setattr(sign_model, "predict_static", lambda f: {"prediction": "Hola", "confidence": 0.9})
+
     result = predict_sign(np.zeros((100, 100, 3), dtype=np.uint8))
     assert result["prediction"] == "Hola"
+    assert abs(result["confidence"] - 0.9) < 1e-4
 
 
 def test_predict_with_model(monkeypatch):
-    """Con modelo cargado debe retornar la clase con mayor probabilidad."""
+    """Con predict_static retornando la clase con mayor probabilidad, predict_sign la reenvía."""
     import numpy as np
     import sign_model
-    from unittest.mock import MagicMock
 
-    lm = _make_landmarks()
-    monkeypatch.setattr(sign_model, "extract_landmarks", lambda img: lm)
-
-    model_mock = MagicMock()
-    model_mock.predict.return_value = np.array([[0.1, 0.8, 0.1]])
-    monkeypatch.setattr(sign_model, "_model", model_mock)
-    monkeypatch.setattr(sign_model, "_class_names", ["A", "B", "C"])
+    fake_features = np.zeros(225)
+    monkeypatch.setattr(sign_model, "extract_static", lambda img: fake_features)
+    monkeypatch.setattr(sign_model, "predict_static", lambda f: {"prediction": "B", "confidence": 0.8})
 
     result = predict_sign(np.zeros((100, 100, 3), dtype=np.uint8))
     assert result["prediction"] == "B"
@@ -106,18 +98,13 @@ def test_predict_with_model(monkeypatch):
 
 
 def test_predict_low_confidence_returns_no_reconocido(monkeypatch):
-    """Confianza baja (< umbral) debe retornar 'No reconocido'."""
+    """Confianza baja devuelta por predict_static debe ser reenviada tal cual."""
     import numpy as np
     import sign_model
-    from unittest.mock import MagicMock
 
-    lm = _make_landmarks()
-    monkeypatch.setattr(sign_model, "extract_landmarks", lambda img: lm)
-
-    model_mock = MagicMock()
-    model_mock.predict.return_value = np.array([[0.4, 0.4, 0.2]])
-    monkeypatch.setattr(sign_model, "_model", model_mock)
-    monkeypatch.setattr(sign_model, "_class_names", ["A", "B", "C"])
+    fake_features = np.zeros(225)
+    monkeypatch.setattr(sign_model, "extract_static", lambda img: fake_features)
+    monkeypatch.setattr(sign_model, "predict_static", lambda f: {"prediction": "No reconocido", "confidence": 0.4})
 
     result = predict_sign(np.zeros((100, 100, 3), dtype=np.uint8))
     assert result["prediction"] == "No reconocido"
