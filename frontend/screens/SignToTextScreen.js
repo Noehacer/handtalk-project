@@ -51,6 +51,13 @@ export default function SignToTextScreen() {
 
   const intervalRef = useRef(null);
 
+  // ── WebSocket state ────────────────────────────────────────────────────────
+  const wsRef = useRef(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [accumulatedSigns, setAccumulatedSigns] = useState([]);
+  const [liveSign, setLiveSign] = useState('');
+  const sessionId = useRef(`session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
 
@@ -83,6 +90,77 @@ export default function SignToTextScreen() {
       Animated.spring(scaleAnim, { toValue: 1, friction: 6,   useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, scaleAnim]);
+
+  // ── WebSocket functions ────────────────────────────────────────────────────
+
+  const connectWebSocket = useCallback(() => {
+    const wsUrl = API_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+    const ws = new WebSocket(`${wsUrl}/ws/detect?sid=${sessionId.current}`);
+    ws.onopen = () => { setWsConnected(true); };
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'sign') {
+        setLiveSign(msg.sign);
+        setAccumulatedSigns(prev => {
+          const last = prev[prev.length - 1];
+          if (last === msg.sign) return prev;
+          return [...prev, msg.sign];
+        });
+      } else if (msg.type === 'sentence') {
+        setPrediction(msg.text || msg.signs.join(' '));
+        setLiveSign('');
+      }
+    };
+    ws.onerror = (e) => console.error('WS error:', e);
+    ws.onclose = () => { setWsConnected(false); wsRef.current = null; };
+    wsRef.current = ws;
+  }, []);
+
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+      setWsConnected(false);
+    }
+  }, []);
+
+  const requestTranslation = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'translate' }));
+    }
+  }, []);
+
+  const clearSession = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'clear' }));
+    }
+    setAccumulatedSigns([]);
+    setLiveSign('');
+    setPrediction('');
+  }, []);
+
+  const sendFrame = useCallback(async () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!cameraRef?.current) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.3, base64: true, skipProcessing: true,
+      });
+      wsRef.current.send(JSON.stringify({
+        type: 'frame',
+        data: `data:image/jpeg;base64,${photo.base64}`,
+      }));
+    } catch (e) {
+      console.warn('Frame error:', e);
+    }
+  }, []);
+
+  // Send frames continuously while WebSocket is connected
+  useEffect(() => {
+    if (!wsConnected) return;
+    const interval = setInterval(sendFrame, 150); // ~6 fps
+    return () => clearInterval(interval);
+  }, [wsConnected, sendFrame]);
 
   if (!permission) return <View style={s.container} />;
 
@@ -289,6 +367,53 @@ export default function SignToTextScreen() {
           </View>
         )}
 
+        {/* Controles WebSocket tiempo real */}
+        <View style={s.wsRow}>
+          <TouchableOpacity
+            style={[s.detectBtn, wsConnected && s.buttonActive]}
+            onPress={wsConnected ? disconnectWebSocket : connectWebSocket}
+            accessibilityRole="button"
+            accessibilityLabel={wsConnected ? 'Desconectar detección en tiempo real' : 'Conectar detección en tiempo real'}
+          >
+            <Text style={s.detectBtnText}>
+              {wsConnected ? '⏹ Detección activa' : '▶ Tiempo real'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {wsConnected && (
+          <>
+            {liveSign !== '' && (
+              <Text style={s.liveSign}>{liveSign}</Text>
+            )}
+
+            {accumulatedSigns.length > 0 && (
+              <View style={s.signsContainer}>
+                <Text style={s.signsLabel}>Señas detectadas:</Text>
+                <Text style={s.signsText}>{accumulatedSigns.join(' → ')}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={s.translateButton}
+              onPress={requestTranslation}
+              accessibilityRole="button"
+              accessibilityLabel="Traducir a español"
+            >
+              <Text style={s.detectBtnText}>Traducir a español</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={s.clearButton}
+              onPress={clearSession}
+              accessibilityRole="button"
+              accessibilityLabel="Limpiar sesión"
+            >
+              <Text style={s.clearText}>Limpiar</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
         {loading && (
           <ActivityIndicator color={theme.primary} style={{ marginTop: 8 }} />
         )}
@@ -365,4 +490,14 @@ const styles = (t) => StyleSheet.create({
   permText:        { fontSize: 16, color: t.text, textAlign: 'center' },
   permBtn:         { backgroundColor: t.primary, borderRadius: 10, padding: 14, paddingHorizontal: 24 },
   permBtnText:     { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  // WebSocket styles
+  wsRow:           { flexDirection: 'row' },
+  buttonActive:    { backgroundColor: '#e74c3c' },
+  signsContainer:  { backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 8, padding: 12, marginTop: 8 },
+  signsLabel:      { color: '#aaa', fontSize: 12, marginBottom: 4 },
+  signsText:       { color: 'white', fontSize: 16, fontWeight: 'bold', flexWrap: 'wrap' },
+  translateButton: { backgroundColor: '#27ae60', borderRadius: 6, padding: 8, marginTop: 8, alignItems: 'center' },
+  clearButton:     { marginTop: 6, alignItems: 'center' },
+  clearText:       { color: '#aaa', fontSize: 12 },
+  liveSign:        { fontSize: 32, fontWeight: 'bold', color: '#3498db', textAlign: 'center', marginTop: 8 },
 });
