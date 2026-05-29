@@ -216,66 +216,60 @@ DICTIONARY = [
 
 # ── Generador de imágenes placeholder ────────────────────────────────────────
 
-def _get_font(size: int):
-    candidates = [
-        "arial.ttf",
-        "Arial.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "C:/Windows/Fonts/arial.ttf",
-    ]
-    for path in candidates:
-        try:
-            return ImageFont.truetype(path, size)
-        except Exception:
-            continue
+_CATEGORY_COLORS = {
+    "saludos":    (52, 152, 219),
+    "cortesias":  (46, 204, 113),
+    "familia":    (155, 89, 182),
+    "numeros":    (230, 126, 34),
+    "colores":    (231, 76, 60),
+    "abecedario": (52, 73, 94),
+    "preguntas":  (241, 196, 15),
+    "tiempo":     (26, 188, 156),
+    "verbos":     (211, 84, 0),
+    "default":    (127, 140, 141),
+}
+
+
+def create_placeholder(word: str, filename: str, category: str = "default"):
+    size  = 200
+    color = _CATEGORY_COLORS.get(category, _CATEGORY_COLORS["default"])
+    img   = Image.new("RGB", (size, size), color)
+    draw  = ImageDraw.Draw(img)
+
+    # Gradient band (lighter at top)
+    for i in range(size // 2):
+        alpha = int(255 * (i / (size // 2)) * 0.3)
+        band  = tuple(min(255, c + alpha) for c in color)
+        draw.rectangle([0, i, size, i + 1], fill=band)
+
+    # Simple hand icon: palm ellipse + finger rectangles
+    cx, cy = size // 2, size // 2 - 20
+    draw.ellipse([cx - 25, cy - 30, cx + 25, cy + 10], fill="white")
+    for dx in [-20, -8, 4, 16]:
+        draw.rectangle([cx + dx, cy - 50, cx + dx + 8, cy - 15], fill="white")
+    draw.rectangle([cx - 28, cy - 35, cx - 14, cy - 10], fill="white")
+
+    # Sign name
+    word_display = word.replace("_", " ").upper()
+    font_size    = max(14, 28 - max(0, len(word_display) - 6) * 2)
     try:
-        return ImageFont.load_default(size=size)
-    except TypeError:
-        return ImageFont.load_default()
+        font  = ImageFont.truetype("arial.ttf", font_size)
+        small = ImageFont.truetype("arial.ttf", 11)
+    except Exception:
+        font  = ImageFont.load_default()
+        small = font
 
+    bbox = draw.textbbox((0, 0), word_display, font=font)
+    tw   = bbox[2] - bbox[0]
+    draw.text(((size - tw) // 2, size - 55), word_display, font=font, fill="white")
 
-def create_placeholder(word: str, filename: str, category: str):
-    bg_color, accent = COLORS.get(category, DEFAULT_COLORS)
-    size = (400, 400)
+    cat_text = f"#{category}"
+    bbox2    = draw.textbbox((0, 0), cat_text, font=small)
+    tw2      = bbox2[2] - bbox2[0]
+    draw.text(((size - tw2) // 2, size - 25), cat_text, font=small, fill=(220, 220, 220))
 
-    img = Image.new("RGB", size, color=bg_color)
-    draw = ImageDraw.Draw(img)
-
-    # Tarjeta blanca centrada
-    margin = 30
-    draw.rounded_rectangle(
-        [margin, margin, size[0] - margin, size[1] - margin],
-        radius=20,
-        fill=(255, 255, 255),
-    )
-
-    # Texto principal
-    display = word.replace("_", " ").upper()
-    font_large = _get_font(42)
-    font_small = _get_font(18)
-
-    # Calcular posición centrada
-    bbox = draw.textbbox((0, 0), display, font=font_large)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    tx = (size[0] - tw) // 2
-    ty = size[1] // 2 - th // 2 - 15
-
-    draw.text((tx, ty), display, fill=accent, font=font_large)
-
-    # Subtítulo con categoría
-    sub = f"[ {category} ]"
-    sbbox = draw.textbbox((0, 0), sub, font=font_small)
-    sx = (size[0] - (sbbox[2] - sbbox[0])) // 2
-    draw.text((sx, ty + th + 12), sub, fill=(160, 160, 160), font=font_small)
-
-    # Línea decorativa superior
-    draw.rectangle([margin + 10, margin + 10, size[0] - margin - 10, margin + 14],
-                   fill=accent)
-
-    path = os.path.join(ASSETS_DIR, filename)
-    img.save(path)
-    return path
+    dest = os.path.join(ASSETS_DIR, filename)
+    img.save(dest)
 
 
 # ── Seeder principal ──────────────────────────────────────────────────────────
