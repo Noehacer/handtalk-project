@@ -109,3 +109,33 @@ def test_media_type_returned():
     database.upsert_sign("adios", "adios.gif", "image/gif", "saludos")
     result = get_sign_image("adios")
     assert result["media_type"] == "image/gif"
+
+
+# ── thumbnail_base64 and has_real_image ───────────────────────────────────────
+
+def test_get_sign_image_returns_thumbnail_key():
+    from text_to_sign import get_sign_image
+    result = get_sign_image("hola")
+    assert "thumbnail_base64" in result
+
+
+def test_get_sign_image_returns_has_real_image_key():
+    from text_to_sign import get_sign_image
+    result = get_sign_image("hola")
+    assert "has_real_image" in result
+    assert isinstance(result["has_real_image"], bool)
+
+
+def test_get_sign_image_not_found_has_all_keys():
+    from text_to_sign import get_sign_image
+    result = get_sign_image("palabraquenoexiste_xyz_99")
+    assert result["found"] is False
+    assert "thumbnail_base64" in result
+    assert "has_real_image" in result
+
+
+def test_invalidate_cache_resets():
+    from text_to_sign import invalidate_words_cache, _get_words_cache
+    invalidate_words_cache()
+    words = _get_words_cache()
+    assert isinstance(words, list)
