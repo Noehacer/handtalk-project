@@ -43,3 +43,23 @@ RATE_PREDICT      = "60/minute"
 RATE_SEQ_FRAME    = "600/minute"
 RATE_TEXT_TO_SIGN = "60/minute"
 RATE_PHRASE       = "30/minute"
+
+# ── Model versioning ──────────────────────────────────────────────────────────
+MODEL_VERSION           = os.getenv("MODEL_VERSION", "v2")
+MODEL_V1_DIR            = MODEL_DIR / "v1"
+MODEL_V2_DIR            = MODEL_DIR / "v2"
+HOLISTIC_STATIC_PATH    = MODEL_V2_DIR / "holistic_static.keras"
+HOLISTIC_STATIC_LABELS  = MODEL_V2_DIR / "labels_static.npy"
+HOLISTIC_DYNAMIC_PATH   = MODEL_V2_DIR / "holistic_dynamic.keras"
+HOLISTIC_DYNAMIC_LABELS = MODEL_V2_DIR / "labels_dynamic.npy"
+CALIBRATION_PATH        = MODEL_V2_DIR / "calibration.json"
+
+# ── Anthropic / NLP ───────────────────────────────────────────────────────────
+ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
+NLP_MODEL          = "claude-haiku-4-5-20251001"
+SEMANTIC_MODEL     = "paraphrase-multilingual-MiniLM-L12-v2"
+SEMANTIC_THRESHOLD = float(os.getenv("SEMANTIC_THRESHOLD", "0.65"))
+
+# ── WebSocket thresholds ──────────────────────────────────────────────────────
+WS_STATIC_THRESHOLD  = float(os.getenv("WS_STATIC_THRESHOLD",  "0.6"))
+WS_DYNAMIC_THRESHOLD = float(os.getenv("WS_DYNAMIC_THRESHOLD", "0.7"))

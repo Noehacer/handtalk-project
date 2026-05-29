@@ -1,5 +1,6 @@
 fastapi
-uvicorn
+uvicorn[standard]
+websockets
 opencv-python
 mediapipe
 tensorflow
@@ -12,3 +13,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 bcrypt>=4.0.1,<5.0.0
 python-dotenv
+anthropic>=0.40.0
+sentence-transformers>=3.0.0
+pyspellchecker>=0.8.0
