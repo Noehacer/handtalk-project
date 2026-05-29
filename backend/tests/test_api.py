@@ -111,6 +111,33 @@ def test_sequence_reset():
     assert r.status_code == 200
 
 
+def test_nlp_clear_requires_auth():
+    r = client.delete("/nlp/clear?session_id=test_session")
+    assert r.status_code == 401
+
+
+def test_nlp_clear_endpoint():
+    client.post("/auth/register", json={"username": "nlpuser", "password": "nlp12345"})
+    token = client.post("/auth/login", json={"username": "nlpuser", "password": "nlp12345"}).json()["access_token"]
+    r = client.delete("/nlp/clear?session_id=test_session", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert "message" in r.json()
+
+
+def test_phrase_response_has_new_fields():
+    r = client.get("/text-to-sign-phrase/hola%20gracias")
+    assert r.status_code == 200
+    body = r.json()
+    assert "found_count" in body
+    assert "not_found" in body
+    assert body["total"] == 2
+
+
+def test_sign_image_direct_not_found():
+    r = client.get("/signs/palabraquenoexiste_xyz/image")
+    assert r.status_code == 404
+
+
 def test_history_is_user_scoped():
     import sys, os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

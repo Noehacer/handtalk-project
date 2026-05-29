@@ -49,6 +49,18 @@ def login(username: str, password: str) -> Optional[str]:
     return _create_token(username)
 
 
+def verify_token(token: str) -> str:
+    """Validates a JWT token and returns the username. Raises HTTPException on failure."""
+    try:
+        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+        username: str = payload.get("sub")
+        if not username:
+            raise HTTPException(status_code=401, detail="Token inválido.")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado.")
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
