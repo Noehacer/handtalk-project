@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "handtalk-frontend",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["cross-env", "CI=1", "expo", "start", "--web", "--port", "19006"],
+      "cwd": "frontend",
+      "port": 19006,
+      "autoPort": false
+    },
+    {
+      "name": "handtalk-api",
+      "runtimeExecutable": "uvicorn",
+      "runtimeArgs": ["main:app", "--host", "0.0.0.0", "--port", "8000"],
+      "cwd": "backend",
+      "port": 8000,
+      "autoPort": false
+    },
+    {
+      "name": "handtalk-mobile",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--lan", "--port", "8081", "--clear"],
+      "cwd": "frontend",
+      "port": 8081,
+      "autoPort": false
+    }
+  ]
+}

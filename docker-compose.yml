@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistir datos fuera del contenedor
+      - ./backend/assets:/app/assets
+      - ./backend/data:/app/data
+      - ./backend/model:/app/model
+      - ./backend/db:/app/db
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-handtalk-dev-insecure-key}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

@@ -1,0 +1,22 @@
+# Configuración para despliegue en Render (render.com)
+# Sube este repositorio a GitHub y conéctalo desde el dashboard de Render.
+
+services:
+  - type: web
+    name: handtalk-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false   # Configura este valor en el dashboard de Render con tu dominio real
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+    disk:
+      name: handtalk-data
+      mountPath: /app/assets
+      sizeGB: 1

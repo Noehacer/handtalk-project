@@ -1,0 +1,26 @@
+# Modelos entrenados (binarios grandes — generar con train_model.py)
+model/*.h5
+model/*.npy
+
+# Datos de entrenamiento (pueden ser miles de archivos .npy)
+data/static/*/
+data/dynamic/*/
+
+# Base de datos SQLite (incluyendo WAL y SHM generados en runtime)
+db/*.db
+db/*.db-wal
+db/*.db-shm
+
+# Imágenes de señas subidas en runtime
+assets/*
+!assets/.gitkeep
+
+# Entorno virtual y caché de Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Variables de entorno con secretos
+.env

@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\noeme\\\\OneDrive\\\\Escritorio\\\\Noe\\\\handtalkchatgpt\\\\handtalk_project\\\\handtalk_project\" -Recurse -Force)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(dir \"C:\\\\Users\\\\noeme\\\\OneDrive\\\\Escritorio\\\\Noe\\\\handtalkchatgpt\\\\handtalk_project\\\\handtalk_project\\\\backend\")",
+      "Bash(npm --version)",
+      "Bash(pip list *)",
+      "Bash(pip install *)",
+      "Bash(python -c \"import main; print\\('Import OK'\\)\")",
+      "Bash(uvicorn main:app --host 0.0.0.0 --port 8000)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s -X POST http://localhost:8000/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"testuser\",\"password\":\"test1234\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"testuser\",\"password\":\"test1234\"}')",
+      "Bash(python -c \"from passlib.context import CryptContext; pwd=CryptContext\\(schemes=['bcrypt'],deprecated='auto'\\); print\\(pwd.hash\\('test1234'\\)\\)\")",
+      "Bash(python -c \"from passlib.context import CryptContext; pwd=CryptContext\\(schemes=['bcrypt'],deprecated='auto'\\); h=pwd.hash\\('test1234'\\); print\\('Hash OK:', h[:20]+'...'\\)\")",
+      "Bash(netstat -ano)",
+      "Bash(findstr :8000)",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill /PID 24332 /F)",
+      "PowerShell(Stop-Process -Id 24332 -Force)",
+      "Bash(npm install *)",
+      "Bash(npx expo-doctor *)",
+      "Bash(npx expo *)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -m pytest tests/ -v --tb=no -q)",
+      "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\('expo-web:', 'react-native-web' in p.get\\('dependencies',{}\\) or 'react-native-web' in p.get\\('devDependencies',{}\\)\\)\")",
+      "Bash(python -m http.server 3000)",
+      "Bash(findstr :3000)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_Preview__preview_start",
+      "PowerShell(Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 3000 -State Listen\\).OwningProcess -Force -ErrorAction SilentlyContinue; Write-Output \"Port 3000 freed\")",
+      "Bash(npx serve *)",
+      "Bash(python seed_dictionary.py)",
+      "Bash(python -c \"from database import get_all_signs, count_signs; print\\('Señas en BD:', count_signs\\(\\)\\); signs = get_all_signs\\(\\); print\\('Primeras 5:', [s['word'] for s in signs[:5]]\\)\")"
+    ]
+  }
+}
